@@ -1,0 +1,28 @@
+name: Run ETL Pipeline
+
+on:
+  push:              
+    branches: [ main ]
+  workflow_dispatch:  
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest   
+
+    steps:
+      - name: Télécharger le code
+        uses: actions/checkout@v3
+
+      - name: Installer Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Installer les librairies
+        run: pip install -r requirements.txt
+
+      - name: Vérifier que le fichier CSV existe
+        run: ls -l purchase_orders_sample_random.csv
+
+      - name: Lancer le script ETL
+        run: python "ETL script complet.py"
