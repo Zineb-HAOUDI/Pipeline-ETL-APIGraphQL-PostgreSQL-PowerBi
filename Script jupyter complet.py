@@ -74,7 +74,7 @@ def extract_nested_values(data, path):
     elif len(results) == 1:
         return results[0]
     else:
-        return results  
+        return results   # ← garde une vraie liste Python
 
 # === 5. Construire le tableau avec les colonnes dans l'ordre ===
 records = []
@@ -110,7 +110,7 @@ import pandas as pd
 from faker import Faker
 import os
 
-# --- Faker 
+# --- Faker en anglais  ---
 fake = Faker("en_US")
 
 # --- Fichiers ---
@@ -119,21 +119,21 @@ OUTPUT_CSV = r"purchase_orders_full_flat37_anonymized.csv"
 MAPPING_CSV = r"anonymization_mapping.csv"
 ID_MAPPING_CSV = r"id_mapping.csv"
 
-# --- Colonnes à anonymiser (noms) ---
+# --- Colonnes à anonymiser (renommées en X1, X2, ...) ---
 COLS = [
-    "attributes.manufacturer",
-    "buyer.nodes.name",
-    "buyer.nodes.parentCompany.nodes.name",
-    "point_of_contact.nodes.name",
-    "attributes.sellingManufacturerFacilityName",
-    "attributes.trader",
+    "X1",
+    "X2",
+    "X3",
+    "X4",
+    "X5",
+    "X6",
 ]
 
-# --- Colonnes identifiants ---
+# --- Colonnes identifiants (renommées en X7, X8, ...) ---
 ID_COLS = [
-    "rowId",
-    "produits.nodes.asset.attributes.gtin",
-    "produits.nodes.asset.attributes.hsCode",
+    "X7",
+    "X8",
+    "X9",
 ]
 
 # --- Charger mapping existant si présent ---
@@ -160,16 +160,16 @@ if os.path.exists(ID_MAPPING_CSV):
 
 # --- Fonctions ---
 def fake_value(original, col):
-    """Anonymisation des noms (entreprises, contacts, etc.)"""
+    """Anonymisation des valeurs (entreprises, contacts, etc.)"""
     if pd.isna(original) or str(original).strip() == "":
-        return ""   # on garde vide si vide à l'origine
+        return ""   # garder vide si vide à l'origine
 
     if original not in ANONYMIZED_VALUES:
-        if "buyer" in col or "trader" in col:
+        if "X2" in col or "X6" in col:
             new_val = fake.company()
-        elif "manufacturer" in col or "sellingManufacturerFacilityName" in col:
+        elif "X1" in col or "X5" in col:
             new_val = fake.company() + " Manufacturing"
-        elif "point_of_contact" in col:
+        elif "X4" in col:
             new_val = fake.name()
         else:
             new_val = fake.word().capitalize()
@@ -182,7 +182,7 @@ def _fmt(seq, width=6):
     return str(seq).zfill(width)
 
 def anonymize_id_value(original, col):
-    """Anonymisation des identifiants (rowId, gtin, hsCode)"""
+    """Anonymisation des identifiants (transactions, produits, codes)"""
     if original is None or str(original).strip() in ["", "nan", "NaN", "null", "None"]:
         return ""
 
@@ -190,17 +190,17 @@ def anonymize_id_value(original, col):
     if orig in ID_MAP:
         return ID_MAP[orig]["fake"]
 
-    if col == "rowId":
+    if col == "X7":
         ID_COUNTER["PO"] += 1
         fakev = f"PO_{_fmt(ID_COUNTER['PO'])}"
         id_type = "PO"
-    elif "gtin" in col.lower():
+    elif "X8" in col:
         ID_COUNTER["GTIN"] += 1
-        fakev = f"FAKE_GTIN_{_fmt(ID_COUNTER['GTIN'])}"
+        fakev = f"FAKE_PRODUIT_{_fmt(ID_COUNTER['GTIN'])}"
         id_type = "GTIN"
-    elif "hs" in col.lower():
+    elif "X9" in col:
         ID_COUNTER["HS"] += 1
-        fakev = f"FAKE_HS_{_fmt(ID_COUNTER['HS'])}"
+        fakev = f"FAKE_CODE_{_fmt(ID_COUNTER['HS'])}"
         id_type = "HS"
     else:
         fakev = f"FAKE_{hash(orig) % 1000000}"
@@ -243,8 +243,6 @@ print(f"✅ Mapping noms écrit : {MAPPING_CSV}")
 print(f"✅ Mapping IDs écrit : {ID_MAPPING_CSV}")
 
 
-
-
 # %% [markdown]
 # <div style="text-align: center; background-color:#257e2aff; font-family:'Times New Roman'; 
 #             color: white; padding: 14px; line-height: 1.4; border-radius:20px">
@@ -258,7 +256,7 @@ INPUT_CSV = r"purchase_orders_full_flat37_anonymized.csv"
 OUTPUT_CSV = r"purchase_orders_sample_random.csv"
 
 # Nombre de lignes à garder
-N = 100000   
+N = 100000   # tu peux mettre 5000 ou 20000 si tu veux
 
 # Charger seulement N lignes
 df = pd.read_csv(INPUT_CSV, sep=";", nrows=N)
@@ -280,9 +278,7 @@ print(f"✅ Échantillon de {N} lignes créé : {OUTPUT_CSV}")
 import pandas as pd
 import os
 from sqlalchemy import create_engine, text
-
 from dotenv import load_dotenv
-import os
 
 # Charger les variables depuis le fichier .env
 load_dotenv()
@@ -291,22 +287,22 @@ load_dotenv()
 csv_file = r"purchase_orders_sample_random.csv"
 df = pd.read_csv(csv_file, sep=";")
 
+# Colonnes numériques (renommées en X1, X2, ...)
 numeric_cols = [
-    "produits.nodes.value",
-    "feedstock.nodes.quantity",
-    "attributes.millsTracabilityPo",
-    "attributes.millsTracabilityPko",
-    "attributes.plantationsTracabilityPo",
-    "attributes.plantationsTracabilityPko",
-    "attributes.volumeContact"
+    "X1",
+    "X2",
+    "X3",
+    "X4",
+    "X5",
+    "X6",
+    "X7"
 ]
 for col in numeric_cols:
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
 # === 2. Supprimer et recréer la base Projet ===
-#  AUTOCOMMIT pour DROP/CREATE DATABASE
-# Lire le mot de passe dans la variable d’environnement
+# AUTOCOMMIT pour DROP/CREATE DATABASE
 password = os.getenv("POSTGRES_PASSWORD")
 
 admin_engine = create_engine(
@@ -333,11 +329,11 @@ engine = create_engine(
     f"postgresql+psycopg2://postgres:{password}@localhost:5432/Projet"
 )
 
-
 # === 4. Charger le CSV dans une table de staging ===
 df.to_sql("staging_orders", engine, if_exists="replace", index=False)
 
 print("✅ Données CSV importées dans PostgreSQL (staging_orders)")
+
 
 # %% [markdown]
 # <div style="text-align: center; background-color:#257e2aff; font-family:'Times New Roman';
@@ -346,100 +342,99 @@ print("✅ Données CSV importées dans PostgreSQL (staging_orders)")
 # </div>
 
 # %%
-# === 4. Créer les tables de dimensions et de faits ===
-# === 4. Créer les tables de dimensions et de faits ===
+# === 4. Créer les tables de dimensions et de faits (version anonymisée) ===
 schema_sql = """
 
 DROP TABLE IF EXISTS Fact_Orders CASCADE;
 DROP SEQUENCE IF EXISTS fact_orders_id_fact_seq CASCADE;
-DROP TABLE IF EXISTS Dim_Manufacturer CASCADE;
-DROP TABLE IF EXISTS Dim_PointOfContact CASCADE;
-DROP TABLE IF EXISTS Dim_Trader CASCADE;
-DROP TABLE IF EXISTS Dim_Certification CASCADE;
-DROP TABLE IF EXISTS Dim_Feedstock CASCADE;
-DROP TABLE IF EXISTS Dim_Product CASCADE;
-DROP TABLE IF EXISTS Dim_Buyer CASCADE;
+DROP TABLE IF EXISTS Dim_X1 CASCADE;
+DROP TABLE IF EXISTS Dim_X2 CASCADE;
+DROP TABLE IF EXISTS Dim_X3 CASCADE;
+DROP TABLE IF EXISTS Dim_X4 CASCADE;
+DROP TABLE IF EXISTS Dim_X5 CASCADE;
+DROP TABLE IF EXISTS Dim_X6 CASCADE;
+DROP TABLE IF EXISTS Dim_X7 CASCADE;
 
--- Table des acheteurs
-CREATE TABLE IF NOT EXISTS Dim_Buyer (
-    id_buyer SERIAL PRIMARY KEY,
-    "buyer.nodes.name" TEXT,
-    "buyer.nodes.parentCompany.nodes.name" TEXT,
-    "attributes.buyerNameContact" TEXT
+-- Table X1
+CREATE TABLE IF NOT EXISTS Dim_X1 (
+    id_x1 SERIAL PRIMARY KEY,
+    "X1" TEXT,
+    "X2" TEXT,
+    "X3" TEXT
 );
 
--- Table des produits
-CREATE TABLE IF NOT EXISTS Dim_Product (
-    id_product SERIAL PRIMARY KEY,
-    "produits.nodes.asset.descriptionShort" TEXT,
-    "produits.nodes.asset.attributes.gtin" TEXT,
-    "produits.nodes.asset.attributes.hsCode" TEXT,
-    "produits.nodes.asset.attributes.descriptionShort" TEXT,
-    "produits.nodes.asset.attributes.regulatedProductName" TEXT,
-    "produits.nodes.unit" TEXT,
-    "produits.nodes.asset.attributes.category" TEXT,
-    "produits.nodes.asset.attributes.isComponent" TEXT,
-    "produits.nodes.asset.attributes.productLine" TEXT,
-    "produits.nodes.asset.attributes.countryOfOrigin" TEXT
+-- Table X2
+CREATE TABLE IF NOT EXISTS Dim_X2 (
+    id_x2 SERIAL PRIMARY KEY,
+    "X4" TEXT,
+    "X5" TEXT,
+    "X6" TEXT,
+    "X7" TEXT,
+    "X8" TEXT,
+    "X9" TEXT,
+    "X10" TEXT,
+    "X11" TEXT,
+    "X12" TEXT,
+    "X13" TEXT
 );
 
--- Table des matières premières
-CREATE TABLE IF NOT EXISTS Dim_Feedstock (
-    id_feedstock SERIAL PRIMARY KEY,
-    "attributes.feedstock" TEXT,
-    "feedstock.nodes.asset.descriptionShort" TEXT,
-    "feedstock.nodes.rawMaterial.name" TEXT,
-    "feedstock.nodes.unit" TEXT
+-- Table X3
+CREATE TABLE IF NOT EXISTS Dim_X3 (
+    id_x3 SERIAL PRIMARY KEY,
+    "X14" TEXT,
+    "X15" TEXT,
+    "X16" TEXT,
+    "X17" TEXT
 );
 
--- Table des certifications
-CREATE TABLE IF NOT EXISTS Dim_Certification (
-    id_certification SERIAL PRIMARY KEY,
-    "transactionExpectedCertificateNomenclatures.nodes.tradeItem.descriptionShort" TEXT,
-    "transactionExpectedCertificateNomenclatures.nodes.type" TEXT,
-    "transactionExpectedCertificateNomenclatures.nodes.level" TEXT
+-- Table X4
+CREATE TABLE IF NOT EXISTS Dim_X4 (
+    id_x4 SERIAL PRIMARY KEY,
+    "X18" TEXT,
+    "X19" TEXT,
+    "X20" TEXT
 );
 
--- Table des traders
-CREATE TABLE IF NOT EXISTS Dim_Trader (
-    id_trader SERIAL PRIMARY KEY,
-    "attributes.trader" TEXT,
-    "attributes.traderContact" TEXT
+-- Table X5
+CREATE TABLE IF NOT EXISTS Dim_X5 (
+    id_x5 SERIAL PRIMARY KEY,
+    "X21" TEXT,
+    "X22" TEXT
 );
 
--- Table des points de contact
-CREATE TABLE IF NOT EXISTS Dim_PointOfContact (
-    id_poc SERIAL PRIMARY KEY,
-    "point_of_contact.nodes.name" TEXT
+-- Table X6
+CREATE TABLE IF NOT EXISTS Dim_X6 (
+    id_x6 SERIAL PRIMARY KEY,
+    "X23" TEXT
 );
 
--- Table des fabricants
-CREATE TABLE IF NOT EXISTS Dim_Manufacturer (
-    id_manufacturer SERIAL PRIMARY KEY,
-    "attributes.sellingManufacturerFacilityName" TEXT,
-    "attributes.manufacturer" TEXT,
-    "attributes.manufacturerContact" TEXT
+-- Table X7
+CREATE TABLE IF NOT EXISTS Dim_X7 (
+    id_x7 SERIAL PRIMARY KEY,
+    "X24" TEXT,
+    "X25" TEXT,
+    "X26" TEXT
 );
 
--- Table des faits (transactions)
+-- Table des faits
 CREATE TABLE IF NOT EXISTS Fact_Orders (
     id_fact SERIAL PRIMARY KEY,
-    "rowId" TEXT,
-    "type" TEXT,
-    id_buyer INT REFERENCES Dim_Buyer(id_buyer),
-    id_product INT REFERENCES Dim_Product(id_product),
-    id_feedstock INT REFERENCES Dim_Feedstock(id_feedstock),
-    id_certification INT REFERENCES Dim_Certification(id_certification),
-    id_trader INT REFERENCES Dim_Trader(id_trader),
-    id_poc INT REFERENCES Dim_PointOfContact(id_poc),
-    id_manufacturer INT REFERENCES Dim_Manufacturer(id_manufacturer),
-    "produits.nodes.value" NUMERIC,
-    "feedstock.nodes.quantity" NUMERIC,
-    "attributes.millsTracabilityPo" NUMERIC,
-    "attributes.millsTracabilityPko" NUMERIC,
-    "attributes.plantationsTracabilityPo" NUMERIC,
-    "attributes.plantationsTracabilityPko" NUMERIC,
-    "attributes.volumeContact" NUMERIC
+    "X27" TEXT,
+    "X28" TEXT,
+    id_x1 INT REFERENCES Dim_X1(id_x1),
+    id_x2 INT REFERENCES Dim_X2(id_x2),
+    id_x3 INT REFERENCES Dim_X3(id_x3),
+    id_x4 INT REFERENCES Dim_X4(id_x4),
+    id_x5 INT REFERENCES Dim_X5(id_x5),
+    id_x6 INT REFERENCES Dim_X6(id_x6),
+    id_x7 INT REFERENCES Dim_X7(id_x7),
+    "X29" NUMERIC,
+    "X30" NUMERIC,
+    "X31" NUMERIC,
+    "X32" NUMERIC,
+    "X33" NUMERIC,
+    "X34" NUMERIC,
+    "X35" NUMERIC
 );
 
 """
@@ -458,122 +453,100 @@ print("✅ Tables de dimensions et de faits créées dans PostgreSQL")
 # </div>
 
 # %%
-## === 5. Alimentation des tables de dimensions ===
+## === 5. Alimentation des tables de dimensions (version anonymisée) ===
 with engine.begin() as conn:
-    # Buyer
+    # Dim_X1
     conn.execute(text("""
-        INSERT INTO Dim_Buyer ("buyer.nodes.name", "buyer.nodes.parentCompany.nodes.name", "attributes.buyerNameContact")
-        SELECT DISTINCT "buyer.nodes.name", "buyer.nodes.parentCompany.nodes.name", "attributes.buyerNameContact"
+        INSERT INTO Dim_X1 ("X1", "X2", "X3")
+        SELECT DISTINCT "X1", "X2", "X3"
         FROM staging_orders
-        WHERE "buyer.nodes.name" IS NOT NULL;
+        WHERE "X1" IS NOT NULL;
     """))
 
-    # Product
+    # Dim_X2
     conn.execute(text("""
-        INSERT INTO Dim_Product ("produits.nodes.asset.descriptionShort", "produits.nodes.asset.attributes.gtin",
-            "produits.nodes.asset.attributes.hsCode", "produits.nodes.asset.attributes.descriptionShort",
-            "produits.nodes.asset.attributes.regulatedProductName", "produits.nodes.unit",
-            "produits.nodes.asset.attributes.category", "produits.nodes.asset.attributes.isComponent",
-            "produits.nodes.asset.attributes.productLine", "produits.nodes.asset.attributes.countryOfOrigin")
-        SELECT DISTINCT "produits.nodes.asset.descriptionShort", "produits.nodes.asset.attributes.gtin",
-            "produits.nodes.asset.attributes.hsCode", "produits.nodes.asset.attributes.descriptionShort",
-            "produits.nodes.asset.attributes.regulatedProductName", "produits.nodes.unit",
-            "produits.nodes.asset.attributes.category", "produits.nodes.asset.attributes.isComponent",
-            "produits.nodes.asset.attributes.productLine", "produits.nodes.asset.attributes.countryOfOrigin"
+        INSERT INTO Dim_X2 ("X4", "X5", "X6", "X7", "X8", "X9", "X10", "X11", "X12", "X13")
+        SELECT DISTINCT "X4", "X5", "X6", "X7", "X8", "X9", "X10", "X11", "X12", "X13"
         FROM staging_orders;
     """))
 
-    # Feedstock
+    # Dim_X3
     conn.execute(text("""
-        INSERT INTO Dim_Feedstock ("attributes.feedstock", "feedstock.nodes.asset.descriptionShort",
-            "feedstock.nodes.rawMaterial.name", "feedstock.nodes.unit")
-        SELECT DISTINCT "attributes.feedstock", "feedstock.nodes.asset.descriptionShort",
-            "feedstock.nodes.rawMaterial.name", "feedstock.nodes.unit"
+        INSERT INTO Dim_X3 ("X14", "X15", "X16", "X17")
+        SELECT DISTINCT "X14", "X15", "X16", "X17"
         FROM staging_orders;
     """))
 
-    # Certification
+    # Dim_X4
     conn.execute(text("""
-        INSERT INTO Dim_Certification ("transactionExpectedCertificateNomenclatures.nodes.tradeItem.descriptionShort",
-            "transactionExpectedCertificateNomenclatures.nodes.type",
-            "transactionExpectedCertificateNomenclatures.nodes.level")
-        SELECT DISTINCT "transactionExpectedCertificateNomenclatures.nodes.tradeItem.descriptionShort",
-            "transactionExpectedCertificateNomenclatures.nodes.type",
-            "transactionExpectedCertificateNomenclatures.nodes.level"
+        INSERT INTO Dim_X4 ("X18", "X19", "X20")
+        SELECT DISTINCT "X18", "X19", "X20"
         FROM staging_orders;
     """))
 
-    # Trader
+    # Dim_X5
     conn.execute(text("""
-        INSERT INTO Dim_Trader ("attributes.trader", "attributes.traderContact")
-        SELECT DISTINCT "attributes.trader", "attributes.traderContact"
+        INSERT INTO Dim_X5 ("X21", "X22")
+        SELECT DISTINCT "X21", "X22"
         FROM staging_orders;
     """))
 
-    # Point of Contact
+    # Dim_X6
     conn.execute(text("""
-        INSERT INTO Dim_PointOfContact ("point_of_contact.nodes.name")
-        SELECT DISTINCT "point_of_contact.nodes.name"
+        INSERT INTO Dim_X6 ("X23")
+        SELECT DISTINCT "X23"
         FROM staging_orders;
     """))
 
-    # Manufacturer
+    # Dim_X7
     conn.execute(text("""
-        INSERT INTO Dim_Manufacturer ("attributes.sellingManufacturerFacilityName",
-            "attributes.manufacturer", "attributes.manufacturerContact")
-        SELECT DISTINCT "attributes.sellingManufacturerFacilityName",
-            "attributes.manufacturer", "attributes.manufacturerContact"
+        INSERT INTO Dim_X7 ("X24", "X25", "X26")
+        SELECT DISTINCT "X24", "X25", "X26"
         FROM staging_orders;
     """))
 
 print("✅ Dimensions alimentées avec succès")
 
 
-# === 6. Alimentation de la table des faits ===
+# === 6. Alimentation de la table des faits (version anonymisée) ===
 with engine.begin() as conn:
     conn.execute(text("""
         INSERT INTO Fact_Orders (
-            "rowId", "type",
-            id_buyer, id_product, id_feedstock, id_certification, id_trader, id_poc, id_manufacturer,
-            "produits.nodes.value", "feedstock.nodes.quantity",
-            "attributes.millsTracabilityPo", "attributes.millsTracabilityPko",
-            "attributes.plantationsTracabilityPo", "attributes.plantationsTracabilityPko",
-            "attributes.volumeContact"
+            "X27", "X28",
+            id_x1, id_x2, id_x3, id_x4, id_x5, id_x6, id_x7,
+            "X29", "X30",
+            "X31", "X32",
+            "X33", "X34",
+            "X35"
         )
         SELECT
-            staging_orders."rowId",
-            staging_orders."type",
-            Dim_Buyer.id_buyer,
-            Dim_Product.id_product,
-            Dim_Feedstock.id_feedstock,
-            Dim_Certification.id_certification,
-            Dim_Trader.id_trader,
-            Dim_PointOfContact.id_poc,
-            Dim_Manufacturer.id_manufacturer,
-            staging_orders."produits.nodes.value",
-            staging_orders."feedstock.nodes.quantity",
-            staging_orders."attributes.millsTracabilityPo",
-            staging_orders."attributes.millsTracabilityPko",
-            staging_orders."attributes.plantationsTracabilityPo",
-            staging_orders."attributes.plantationsTracabilityPko",
-            staging_orders."attributes.volumeContact"
+            staging_orders."X27",
+            staging_orders."X28",
+            Dim_X1.id_x1,
+            Dim_X2.id_x2,
+            Dim_X3.id_x3,
+            Dim_X4.id_x4,
+            Dim_X5.id_x5,
+            Dim_X6.id_x6,
+            Dim_X7.id_x7,
+            staging_orders."X29",
+            staging_orders."X30",
+            staging_orders."X31",
+            staging_orders."X32",
+            staging_orders."X33",
+            staging_orders."X34",
+            staging_orders."X35"
         FROM staging_orders
-        LEFT JOIN Dim_Buyer
-            ON staging_orders."buyer.nodes.name" = Dim_Buyer."buyer.nodes.name"
-        LEFT JOIN Dim_Product
-            ON staging_orders."produits.nodes.asset.descriptionShort" = Dim_Product."produits.nodes.asset.descriptionShort"
-        LEFT JOIN Dim_Feedstock
-            ON staging_orders."attributes.feedstock" = Dim_Feedstock."attributes.feedstock"
-        LEFT JOIN Dim_Certification
-            ON staging_orders."transactionExpectedCertificateNomenclatures.nodes.tradeItem.descriptionShort" = Dim_Certification."transactionExpectedCertificateNomenclatures.nodes.tradeItem.descriptionShort"
-        LEFT JOIN Dim_Trader
-            ON staging_orders."attributes.trader" = Dim_Trader."attributes.trader"
-        LEFT JOIN Dim_PointOfContact
-            ON staging_orders."point_of_contact.nodes.name" = Dim_PointOfContact."point_of_contact.nodes.name"
-        LEFT JOIN Dim_Manufacturer
-            ON staging_orders."attributes.manufacturer" = Dim_Manufacturer."attributes.manufacturer";
+        LEFT JOIN Dim_X1 ON staging_orders."X1" = Dim_X1."X1"
+        LEFT JOIN Dim_X2 ON staging_orders."X4" = Dim_X2."X4"
+        LEFT JOIN Dim_X3 ON staging_orders."X14" = Dim_X3."X14"
+        LEFT JOIN Dim_X4 ON staging_orders."X18" = Dim_X4."X18"
+        LEFT JOIN Dim_X5 ON staging_orders."X21" = Dim_X5."X21"
+        LEFT JOIN Dim_X6 ON staging_orders."X23" = Dim_X6."X23"
+        LEFT JOIN Dim_X7 ON staging_orders."X24" = Dim_X7."X24";
     """))
 
 print("✅ Table des faits alimentée avec succès")
+
 
 
